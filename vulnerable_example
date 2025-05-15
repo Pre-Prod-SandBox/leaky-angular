@@ -1,10 +1,113 @@
-# vulnerable_example.py
+// Multiple vulnerabilities for CodeQL scanning demonstration
 
-def run_user_code():
-    user_input = input("Enter code to run: ")
-    # This is intentionally insecure!
-    result = eval(user_input)
-    print("Result:", result)
+const mysql = require('mysql');
+const fs = require('fs');
+const http = require('http');
+const { exec } = require('child_process');
 
-if __name__ == "__main__":
-    run_user_code()
+// Hardcoded credentials (bad practice)
+const dbPassword = "P@ssw0rd123";
+const dbUser = "admin";
+
+// SQL Injection vulnerability
+function getUserData(username) {
+    const connection = mysql.createConnection({
+        host: 'localhost',
+        user: dbUser,
+        password: dbPassword,
+        database: 'testdb'
+    });
+
+    // Vulnerable query (user input directly concatenated)
+    const query = "SELECT * FROM users WHERE username = '" + username + "'";
+    connection.query(query, function (error, results, fields) {
+        if (error) throw error;
+        console.log(results);
+    });
+
+    connection.end();
+}
+
+// Command Injection vulnerability
+function runCommand(userInput) {
+    exec('ls ' + userInput, (err, stdout, stderr) => {
+        if (err) {
+            console.error(`exec error: ${err}`);
+            return;
+        }
+        console.log(`stdout: ${stdout}`);
+    });
+}
+
+// Insecure HTTP (sensitive data sent over HTTP)
+function sendSensitiveData(data) {
+    const options = {
+        hostname: 'example.com',
+        port: 80,
+        path: '/submit',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    const req = http.request(options, (res) => {
+        res.on('data', (d) => {
+            process.stdout.write(d);
+        });
+    });
+
+    req.write(JSON.stringify({ secret: data }));
+    req.end();
+}
+
+// 1. Path Traversal vulnerability
+function readUserFile(filename) {
+    // User can supply "../../etc/passwd" or similar
+    fs.readFile('/home/app/data/' + filename, 'utf8', (err, data) => {
+        if (err) throw err;
+        console.log(data);
+    });
+}
+
+// 2. Cross-Site Scripting (XSS) vulnerability (for server-side rendering)
+function renderComment(userComment) {
+    // Directly embedding user input into HTML
+    const html = `<div>${userComment}</div>`;
+    console.log(html);
+}
+
+// 3. Insecure Deserialization
+function insecureDeserialize(serializedData) {
+    // Using eval to deserialize user input
+    const obj = eval('(' + serializedData + ')');
+    console.log(obj);
+}
+
+// 4. Information Disclosure (stack trace leak)
+function processRequest(req) {
+    try {
+        // Some processing...
+        throw new Error("Something went wrong!");
+    } catch (err) {
+        // Leaking stack trace to user
+        req.res.end(err.stack);
+    }
+}
+
+// 5. Use of deprecated/insecure crypto algorithm
+const crypto = require('crypto');
+function hashPassword(password) {
+    // MD5 is insecure
+    return crypto.createHash('md5').update(password).digest('hex');
+}
+
+// Example usage
+getUserData("admin' OR '1'='1");
+runCommand("; rm -rf /");
+sendSensitiveData("my-secret-data");
+readUserFile("../../etc/passwd");
+renderComment("<img src=x onerror=alert(1)>");
+insecureDeserialize("{ \"isAdmin\": true }");
+processRequest({ res: { end: console.log } });
+console.log(hashPassword("password123"));
