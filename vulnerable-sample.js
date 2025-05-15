@@ -64,9 +64,11 @@ function processRequest(req) {
 }
 
 // 4. Use of deprecated/insecure crypto algorithm
+const bcrypt = require('bcrypt');
 function hashPassword(password) {
-    // MD5 is insecure
-    return crypto.createHash('md5').update(password).digest('hex');
+    // Use bcrypt for secure password hashing
+    const saltRounds = 10; // Adjust cost factor as needed
+    return bcrypt.hashSync(password, bcrypt.genSaltSync(saltRounds));
 }
 
 // 5. Insecure HTTP (sensitive data sent over HTTP)
